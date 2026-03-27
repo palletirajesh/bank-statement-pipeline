@@ -1,0 +1,10 @@
+venv/
+__pycache__/
+*.pyc
+document-key.json
+output/
+input/
+trash/
+json_output/
+access_log.db
+.streamlit/
