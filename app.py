@@ -77,7 +77,7 @@ TRASH_DIR  = Path("trash")
 # Rate-limit env vars – all tunable without code changes
 FEATURE_LIMITS: dict[str, int] = {
     "upload":   int(os.getenv("UPLOAD_LIMIT",   "0")),   # 0 = unlimited
-    "process":  int(os.getenv("PROCESS_LIMIT",  "2")),
+    "process":  int(os.getenv("PROCESS_LIMIT",  "10")),
     "download": int(os.getenv("DOWNLOAD_LIMIT", "0")),   # 0 = unlimited
 }
 COST_PER_FILE_USD = float(os.getenv("COST_PER_FILE_USD", "0.15"))
@@ -1594,6 +1594,79 @@ def render_blocked_screen(ip: str):
 # ==========================================================================
 # Right panel
 # ==========================================================================
+def _render_quota_bar(ip: str):
+    """
+    Always-visible usage counter shown above the file uploader.
+    Displays used / limit for every active feature limit, plus a
+    colour-coded progress bar.  Green → plenty left. Amber → ≤ 3 left.
+    Red → at/over limit (shouldn't normally be reachable — blocked screen
+    takes over — but shown as a safety net).
+    """
+    active = {f: l for f, l in FEATURE_LIMITS.items() if l > 0}
+    if not active:
+        return  # all limits disabled — nothing to show
+
+    usage = get_ip_usage(ip)
+
+    pills_html = ""
+    warn_msgs  = []
+
+    for feature, limit in active.items():
+        col       = _FEATURE_COLS[feature]
+        used      = usage.get(col, 0)
+        remaining = max(0, limit - used)
+        pct       = min(100, int(used / limit * 100))
+
+        # Colour thresholds
+        if remaining == 0:
+            bar_color, text_color, bg = "#ef4444", "#7f1d1d", "#fef2f2"
+        elif remaining <= 3:
+            bar_color, text_color, bg = "#f97316", "#7c2d12", "#fff7ed"
+        else:
+            bar_color, text_color, bg = "#22c55e", "#14532d", "#f0fdf4"
+
+        label = feature.capitalize()
+        pills_html += f"""
+        <div style="margin-bottom:8px;">
+          <div style="display:flex;justify-content:space-between;
+                      font-size:.82rem;font-weight:600;color:#344054;margin-bottom:3px;">
+            <span>{label}</span>
+            <span style="color:{text_color};">
+              {used} / {limit} used &nbsp;·&nbsp;
+              <strong>{remaining} remaining</strong>
+            </span>
+          </div>
+          <div style="background:#e5e7eb;border-radius:999px;height:7px;overflow:hidden;">
+            <div style="width:{pct}%;height:100%;
+                        background:{bar_color};border-radius:999px;
+                        transition:width .4s ease;"></div>
+          </div>
+        </div>
+        """
+
+        if remaining == 1:
+            warn_msgs.append(f"⚠️ Only **1 free {feature}** left — your IP will be paused after this one.")
+        elif remaining == 0:
+            warn_msgs.append(f"🚫 {label} limit reached.")
+
+    st.markdown(
+        f"""
+        <div style="background:#f9fafb;border:1px solid #e5e7eb;
+                    border-radius:14px;padding:.75rem 1rem .6rem;
+                    margin-bottom:.75rem;">
+          <div style="font-size:.78rem;font-weight:700;color:#6b7280;
+                      text-transform:uppercase;letter-spacing:.05em;
+                      margin-bottom:.55rem;">Free quota</div>
+          {pills_html}
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    for msg in warn_msgs:
+        st.warning(msg)
+
+
 def render_main_product_flow():
     ctx = get_client_context()
     ip  = ctx["ip"]
@@ -1602,6 +1675,11 @@ def render_main_product_flow():
     if is_ip_blocked(ip):
         render_blocked_screen(ip)
         return
+
+    # ----------------------------------------------------------------
+    # Always-visible usage quota bar
+    # ----------------------------------------------------------------
+    _render_quota_bar(ip)
 
     uploaded_file = st.file_uploader(
         "Upload bank statement",
@@ -1634,17 +1712,6 @@ def render_main_product_flow():
         saved_pdf_path = Path(st.session_state["current_upload_path"])
         display_name   = st.session_state.get("current_saved_pdf_name", uploaded_file.name)
         st.success(f"Uploaded: {display_name}")
-
-        # Remaining-use warning for process limit
-        process_limit = FEATURE_LIMITS["process"]
-        if process_limit > 0:
-            current_count = get_ip_usage(ip).get("process_count", 0)
-            remaining     = max(0, process_limit - current_count)
-            if remaining <= 3:
-                st.warning(
-                    f"You have **{remaining} free conversion{'s' if remaining != 1 else ''}** "
-                    f"remaining before your access is temporarily paused."
-                )
 
         if st.button("Process file", use_container_width=True, type="primary"):
             with st.spinner("Processing file..."):
