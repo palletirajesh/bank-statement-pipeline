@@ -1374,10 +1374,12 @@ def process_file(pdf_path: Path) -> Path:
 # ==========================================================================
 # Left panel
 # ==========================================================================
-if st.session_state.pop("issue_submitted_msg", None):
-    st.success("Your issue has been submitted.")
+
 
 def render_issue_form(current_doc_name: str):
+    if st.session_state.pop("issue_submitted_msg", None):
+        st.success("Your issue has been submitted.")
+
     issue_type = st.selectbox(
         "What went wrong?",
         ["Wrong dates", "Missing transactions", "Duplicate transactions",
