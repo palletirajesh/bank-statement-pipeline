@@ -67,6 +67,7 @@ logger = logging.getLogger(__name__)
 # Streamlit page config
 # ---------------------------------------------------------------------------
 st.set_page_config(page_title="Bank Statement Processor", layout="wide")
+enforce_geo_access()
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -445,6 +446,23 @@ def lookup_location(ip: str) -> tuple:
     st.session_state[cache_key] = result
     return result
 
+def enforce_geo_access():
+    ctx = get_client_context()
+    ip = ctx["ip"]
+
+    # Allow local development
+    if ip == "local" or ip.startswith("127.") or ip.startswith("10.") or ip.startswith("192.168."):
+        return
+
+    city, region, country, zip_, lat, lon, isp = lookup_location(ip)
+
+    allowed_country = "Canada"
+    allowed_region = "Ontario"
+
+    if country != allowed_country or region != allowed_region:
+        st.error("Access restricted. This application is currently available only in Ontario, Canada.")
+        st.caption(f"Detected location: {city}, {region}, {country}")
+        st.stop()
 
 def log_event(action: str, document_name: str = ""):
     """
@@ -1356,6 +1374,9 @@ def process_file(pdf_path: Path) -> Path:
 # ==========================================================================
 # Left panel
 # ==========================================================================
+if st.session_state.pop("issue_submitted_msg", None):
+    st.success("Your issue has been submitted.")
+
 def render_issue_form(current_doc_name: str):
     issue_type = st.selectbox(
         "What went wrong?",
@@ -1391,9 +1412,8 @@ def render_issue_form(current_doc_name: str):
                 email=user_email.strip() or None,
             )
             log_event("error_report", current_doc_name)
-            st.success("Your issue has been submitted.")
-            st.session_state["error_details"] = ""
-            st.session_state["error_email"]   = ""
+            st.session_state["issue_submitted_msg"] = "Your issue has been submitted."
+            st.rerun()
 
 
 def render_bug_history():
