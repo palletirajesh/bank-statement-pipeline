@@ -40,6 +40,19 @@ jobs:
               '"SELECT 1 FROM ip_blocks WHERE ip = ? AND expires_at_utc > ?"'
           )
 
+          # Allow visitors from anywhere in Canada, not only Ontario.
+          text = text.replace(
+              '''    allowed_country = "Canada"
+    allowed_region = "Ontario"
+
+    if country != allowed_country or region != allowed_region:
+        st.error("Access restricted. This application is currently available only in Ontario, Canada.")''',
+              '''    allowed_country = "Canada"
+
+    if country != allowed_country:
+        st.error("Access restricted. This application is currently available only in Canada.")'''
+          )
+
           visit_code = '''
 # ==========================================================================
 # Public website visit counter
@@ -151,5 +164,5 @@ def render_visit_counter():
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add app.py
-          git commit -m "Add visible public visit counter to app"
+          git commit -m "Allow Canada-wide access in app"
           git push
