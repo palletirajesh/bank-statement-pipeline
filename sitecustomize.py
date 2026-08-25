@@ -22,8 +22,6 @@ from urllib.request import Request, urlopen
 logger = logging.getLogger(__name__)
 
 _ALLOWED_COUNTRY = "Canada"
-_ALLOWED_REGION_NAME = "Ontario"
-_ALLOWED_REGION_CODE = "ON"
 _TRACK_DB = "access_log.db"
 
 
@@ -94,7 +92,7 @@ def _lookup_location(ip: str) -> dict:
 
 
 def enforce_geo_access() -> None:
-    """Allow only visitors geolocated to Ontario, Canada."""
+    """Allow only visitors geolocated to Canada."""
     import streamlit as st
 
     ip = _get_client_ip(st)
@@ -111,13 +109,9 @@ def enforce_geo_access() -> None:
     city = _safe_str(data.get("city"))
 
     is_canada = country.casefold() == _ALLOWED_COUNTRY.casefold() or country_code.casefold() == "ca"
-    is_ontario = (
-        region_name.casefold() == _ALLOWED_REGION_NAME.casefold()
-        or region_code.casefold() == _ALLOWED_REGION_CODE.casefold()
-    )
 
-    if not (is_canada and is_ontario):
-        st.error("Access restricted. This application is currently available only in Ontario, Canada.")
+    if not is_canada:
+        st.error("Access restricted. This application is currently available only in Canada.")
         detected = ", ".join(x for x in [city, region_name or region_code, country or country_code] if x)
         if detected:
             st.caption(f"Detected location: {detected}")
